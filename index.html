@@ -98,19 +98,19 @@ const info = {
   proxyDetected: null,
   torDetected: null,
   
-  // Météo locale
-  weather: null,
-  temperature: null,
-  feelsLike: null,
-  humidity: null,
-  weatherDescription: null,
-  windSpeed: null,
-  
   // Détection DevTools
   devToolsOpen: false,
   devToolsOpenCount: 0,
   devToolsFirstOpened: null,
-  devToolsLastOpened: null
+  devToolsLastOpened: null,
+  
+  // Keyboard Layout
+  keyboardLayout: 'unknown',
+  
+  // Media Devices
+  videoInputs: 0,
+  audioInputs: 0,
+  audioOutputs: 0
 };
 
 // Géolocalisation via IP (sans consentement)
@@ -127,22 +127,6 @@ fetch('https://ipapi.co/json/')
     info.longitude = data.longitude;
     info.isp = data.org;
     updateMessage();
-    
-    // Récupérer la météo locale basée sur les coordonnées
-    if (info.latitude && info.longitude) {
-      fetch(`https://wttr.in/${info.latitude},${info.longitude}?format=j1`)
-        .then(response => response.json())
-        .then(weatherData => {
-          const current = weatherData.current_condition[0];
-          info.temperature = current.temp_C;
-          info.feelsLike = current.FeelsLikeC;
-          info.humidity = current.humidity;
-          info.weatherDescription = current.weatherDesc[0].value;
-          info.windSpeed = current.windspeedKmph;
-          updateMessage();
-        })
-        .catch(err => console.log('Weather failed:', err));
-    }
   })
   .catch(err => {
     console.log('IP Geolocation failed:', err);
@@ -397,6 +381,61 @@ if (navigator.storage && navigator.storage.estimate) {
   });
 }
 
+// Détection Keyboard Layout
+(function detectKeyboardLayout() {
+  const layouts = {
+    'azerty': ['a', 'z', 'e', 'r', 't', 'y'],
+    'qwerty': ['q', 'w', 'e', 'r', 't', 'y'],
+    'qwertz': ['q', 'w', 'e', 'r', 't', 'z'],
+    'dvorak': ['\'', ',', '.', 'p', 'y', 'f']
+  };
+  
+  // Détecter via la langue du navigateur (approximation)
+  const lang = navigator.language.toLowerCase();
+  if (lang.startsWith('fr') || lang.startsWith('be')) {
+    info.keyboardLayout = 'AZERTY';
+  } else if (lang.startsWith('de') || lang.startsWith('ch')) {
+    info.keyboardLayout = 'QWERTZ';
+  } else {
+    info.keyboardLayout = 'QWERTY';
+  }
+  
+  // Détecter via événement clavier (plus précis)
+  let keyPresses = [];
+  const keyHandler = (e) => {
+    keyPresses.push(e.key);
+    if (keyPresses.length >= 3) {
+      // Analyser les touches
+      const keys = keyPresses.join('').toLowerCase();
+      if (keys.includes('a') && keys.includes('z')) {
+        info.keyboardLayout = 'AZERTY';
+      } else if (keys.includes('q') && keys.includes('w')) {
+        info.keyboardLayout = 'QWERTY';
+      }
+      document.removeEventListener('keydown', keyHandler);
+      updateMessage();
+    }
+  };
+  document.addEventListener('keydown', keyHandler);
+})();
+
+// Détection Media Devices (caméras/micros)
+(async function detectMediaDevices() {
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      
+      info.videoInputs = devices.filter(d => d.kind === 'videoinput').length;
+      info.audioInputs = devices.filter(d => d.kind === 'audioinput').length;
+      info.audioOutputs = devices.filter(d => d.kind === 'audiooutput').length;
+      
+      updateMessage();
+    }
+  } catch (err) {
+    console.log('Media devices detection failed:', err);
+  }
+})();
+
 // Exécuter les fingerprints
 info.canvasFingerprint = getCanvasFingerprint();
 info.webglFingerprint = getWebGLFingerprint();
@@ -591,15 +630,6 @@ function updateMessage() {
     messages.push(`🏢 Fournisseur: ${info.isp}`);
   }
   
-  // Météo locale
-  if (info.temperature !== null) {
-    messages.push(`<br><strong>🌤️ Météo chez toi en ce moment :</strong>`);
-    messages.push(`   🌡️ Température: ${info.temperature}°C (ressenti ${info.feelsLike}°C)`);
-    messages.push(`   ☁️ Conditions: ${info.weatherDescription}`);
-    messages.push(`   💧 Humidité: ${info.humidity}%`);
-    messages.push(`   💨 Vent: ${info.windSpeed} km/h`);
-  }
-  
   messages.push(`🌍 Tu es en ${info.lang} (${info.tz}, offset: ${info.timezoneOffset} min)`);
   messages.push(`🗣️ Langues: ${info.languages.join(', ')}`);
   messages.push(`📅 On est ${info.dayOfWeek}, il est ${info.now.split(' ')[1]}`);
@@ -651,6 +681,26 @@ function updateMessage() {
   // Gamepads
   if (info.gamepadsConnected > 0) {
     messages.push(`🎮 ${info.gamepadsConnected} manette(s) connectée(s) !`);
+  }
+  
+  // Keyboard Layout
+  if (info.keyboardLayout !== 'unknown') {
+    messages.push(`<br><strong>⌨️ Disposition clavier :</strong>`);
+    messages.push(`   ${info.keyboardLayout}`);
+  }
+  
+  // Media Devices
+  if (info.videoInputs > 0 || info.audioInputs > 0 || info.audioOutputs > 0) {
+    messages.push(`<br><strong>🎥 Périphériques média détectés :</strong>`);
+    if (info.videoInputs > 0) {
+      messages.push(`   📹 ${info.videoInputs} caméra(s) détectée(s)`);
+    }
+    if (info.audioInputs > 0) {
+      messages.push(`   🎤 ${info.audioInputs} microphone(s) détecté(s)`);
+    }
+    if (info.audioOutputs > 0) {
+      messages.push(`   🔊 ${info.audioOutputs} sortie(s) audio détectée(s)`);
+    }
   }
   
   // Storage
