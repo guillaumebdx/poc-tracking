@@ -6,7 +6,7 @@
     <title>Hello World</title>
 </head>
 <body>
-    <h1>Bienvenue</h1>
+
     
     <script>
 
@@ -430,6 +430,16 @@ if (navigator.getBattery) {
 
 // Détection DevTools (multiple méthodes)
 (function detectDevTools() {
+  // Désactiver sur mobile pour éviter les faux positifs
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   navigator.maxTouchPoints > 0 || 
+                   'ontouchstart' in window;
+  
+  if (isMobile) {
+    console.log('Mobile détecté - détection DevTools désactivée');
+    return; // Ne pas détecter sur mobile
+  }
+  
   const threshold = 160;
   let devToolsWasOpen = false;
   
@@ -482,6 +492,7 @@ if (navigator.getBattery) {
         info.devToolsFirstOpened = new Date().toLocaleTimeString('fr-FR');
       }
       updateMessage();
+      showDevToolsWarning();
       
       // Message dans la console pour troller
       console.log('%c👀 Je te vois !', 'font-size: 30px; color: red; font-weight: bold;');
@@ -491,30 +502,93 @@ if (navigator.getBattery) {
       // DevTools vient d'être fermé
       info.devToolsOpen = false;
       updateMessage();
+      hideDevToolsWarning();
+    }
+    
+    // Mettre à jour l'overlay si DevTools est ouvert
+    if (info.devToolsOpen) {
+      updateDevToolsWarning();
     }
   }, 500);
 })();
+
+// Fonctions pour l'overlay DevTools
+function showDevToolsWarning() {
+  let overlay = document.getElementById('devtools-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'devtools-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(135deg, #ff0000, #ff6b00);
+      color: white;
+      padding: 20px;
+      z-index: 999999;
+      text-align: center;
+      font-family: system-ui, -apple-system, sans-serif;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      animation: slideDown 0.3s ease-out;
+    `;
+    document.body.appendChild(overlay);
+    
+    // Ajouter l'animation CSS
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideDown {
+        from { transform: translateY(-100%); }
+        to { transform: translateY(0); }
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  overlay.style.display = 'block';
+  updateDevToolsWarning();
+}
+
+function hideDevToolsWarning() {
+  const overlay = document.getElementById('devtools-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+}
+
+function updateDevToolsWarning() {
+  const overlay = document.getElementById('devtools-overlay');
+  if (overlay && info.devToolsOpen) {
+    overlay.innerHTML = `
+      <div style="animation: pulse 2s infinite;">
+        <div style="font-size: 48px; margin-bottom: 10px;">👀</div>
+        <div style="font-size: 32px; font-weight: bold; margin-bottom: 10px;">JE TE VOIS !</div>
+        <div style="font-size: 20px; margin-bottom: 15px;">Tu es en train d'inspecter mon code...</div>
+        <div style="font-size: 16px; opacity: 0.9;">
+          📊 Ouvert ${info.devToolsOpenCount} fois | 🕐 Dernière fois: ${info.devToolsLastOpened}
+        </div>
+        <div style="font-size: 14px; margin-top: 10px; opacity: 0.8;">
+          Ferme les DevTools pour faire disparaître ce message 😏
+        </div>
+      </div>
+    `;
+  }
+}
 
 function updateMessage() {
   const messages = [];
   
   messages.push(`👋 Salut ! Je vois que tu es sur un écran ${info.screen}`);
   
-  // Géolocalisation (via IP)
-  if (info.city && info.country) {
-    messages.push(`📍 Localisation: ${info.city}, ${info.region}, ${info.country}`);
-    if (info.postalCode) {
-      messages.push(`📮 Code postal: ${info.postalCode}`);
-    }
-    if (info.latitude && info.longitude) {
-      messages.push(`🗺️ Coordonnées: ${info.latitude.toFixed(4)}, ${info.longitude.toFixed(4)}`);
-    }
-    if (info.ipAddress) {
-      messages.push(`🌐 IP: ${info.ipAddress}`);
-    }
-    if (info.isp) {
-      messages.push(`🏢 Fournisseur: ${info.isp}`);
-    }
+  // Informations IP
+  if (info.ipAddress) {
+    messages.push(`🌐 IP: ${info.ipAddress}`);
+  }
+  if (info.isp) {
+    messages.push(`🏢 Fournisseur: ${info.isp}`);
   }
   
   // Météo locale
