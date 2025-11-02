@@ -124,6 +124,17 @@ const info = {
   touchPoints: []
 };
 
+// Forcer la réinitialisation au chargement (pour éviter le bfcache)
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    // Page restaurée depuis le cache, forcer la réinitialisation
+    console.log('🔄 Page restaurée depuis cache - Réinitialisation forcée');
+    info.touchCount = 0;
+    info.touchPoints = [];
+    updateMessage();
+  }
+});
+
 // Géolocalisation via IP (sans consentement)
 fetch('https://ipapi.co/json/')
   .then(response => response.json())
@@ -796,7 +807,7 @@ function showTabReturnWarning(awaySeconds) {
         Tu regardais quoi ? 🤔
       </div>
       <div style="font-size: 18px; margin-top: 30px; opacity: 0.6;">
-        C'est la ${info.tabSwitchCount}ème fois que tu pars...
+        ${info.tabSwitchCount === 1 ? 'Première fois que tu pars...' : `C'est la ${info.tabSwitchCount}ème fois que tu pars...`}
       </div>
       <div style="font-size: 14px; margin-top: 20px; opacity: 0.5;">
         (Ce message disparaîtra dans 5 secondes)
