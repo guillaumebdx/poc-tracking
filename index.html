@@ -110,7 +110,14 @@ const info = {
   // Media Devices
   videoInputs: 0,
   audioInputs: 0,
-  audioOutputs: 0
+  audioOutputs: 0,
+  
+  // Tab Visibility
+  tabSwitchCount: 0,
+  currentlyAway: false,
+  lastAwayTime: null,
+  totalAwayTime: 0,
+  longestAwayTime: 0
 };
 
 // Géolocalisation via IP (sans consentement)
@@ -436,6 +443,101 @@ if (navigator.storage && navigator.storage.estimate) {
   }
 })();
 
+// Détection Tab Visibility (changement d'onglet)
+(function detectTabVisibility() {
+  let awayStartTime = null;
+  let awayDuration = 0;
+  
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // L'utilisateur vient de quitter l'onglet
+      info.currentlyAway = true;
+      info.tabSwitchCount++;
+      awayStartTime = Date.now();
+      info.lastAwayTime = new Date().toLocaleTimeString('fr-FR');
+    } else {
+      // L'utilisateur revient sur l'onglet
+      if (awayStartTime) {
+        awayDuration = Math.floor((Date.now() - awayStartTime) / 1000);
+        info.totalAwayTime += awayDuration;
+        if (awayDuration > info.longestAwayTime) {
+          info.longestAwayTime = awayDuration;
+        }
+        info.currentlyAway = false;
+        
+        // Afficher l'overlay de retour
+        showTabReturnWarning(awayDuration);
+        
+        // Masquer l'overlay après 5 secondes
+        setTimeout(() => {
+          hideTabAwayWarning();
+        }, 5000);
+        
+        updateMessage();
+      }
+    }
+  });
+})();
+
+// Fonctions pour l'overlay Tab Away
+function showTabReturnWarning(awaySeconds) {
+  let overlay = document.getElementById('tab-away-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'tab-away-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      z-index: 999998;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, sans-serif;
+      text-align: center;
+    `;
+    document.body.appendChild(overlay);
+  }
+  
+  const minutes = Math.floor(awaySeconds / 60);
+  const secs = awaySeconds % 60;
+  const timeStr = minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
+  
+  overlay.innerHTML = `
+    <div style="animation: pulse 2s infinite;">
+      <div style="font-size: 80px; margin-bottom: 20px;">👀</div>
+      <div style="font-size: 48px; font-weight: bold; margin-bottom: 20px;">
+        TU ÉTAIS OÙ ?
+      </div>
+      <div style="font-size: 32px; margin-bottom: 30px; color: #ff6b6b;">
+        Tu es parti pendant ${timeStr}
+      </div>
+      <div style="font-size: 24px; opacity: 0.8;">
+        Tu regardais quoi dans l'autre onglet ? 🤔
+      </div>
+      <div style="font-size: 18px; margin-top: 30px; opacity: 0.6;">
+        C'est la ${info.tabSwitchCount}ème fois que tu pars...
+      </div>
+      <div style="font-size: 14px; margin-top: 20px; opacity: 0.5;">
+        (Ce message disparaîtra dans 5 secondes)
+      </div>
+    </div>
+  `;
+  
+  overlay.style.display = 'flex';
+}
+
+function hideTabAwayWarning() {
+  const overlay = document.getElementById('tab-away-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+}
+
 // Exécuter les fingerprints
 info.canvasFingerprint = getCanvasFingerprint();
 info.webglFingerprint = getWebGLFingerprint();
@@ -743,6 +845,25 @@ function updateMessage() {
       messages.push(`   ⏰ Première ouverture: ${info.devToolsFirstOpened}`);
     }
     messages.push(`   🕐 Dernière ouverture: ${info.devToolsLastOpened}`);
+  }
+  
+  // Tab Visibility Stats
+  if (info.tabSwitchCount > 0) {
+    messages.push(`<br><strong>👀 Changements d'onglet détectés :</strong>`);
+    messages.push(`   📊 Tu es parti ${info.tabSwitchCount} fois`);
+    if (info.totalAwayTime > 0) {
+      const totalMins = Math.floor(info.totalAwayTime / 60);
+      const totalSecs = info.totalAwayTime % 60;
+      messages.push(`   ⏱️ Temps total absent : ${totalMins}m ${totalSecs}s`);
+    }
+    if (info.longestAwayTime > 0) {
+      const longMins = Math.floor(info.longestAwayTime / 60);
+      const longSecs = info.longestAwayTime % 60;
+      messages.push(`   🏆 Plus longue absence : ${longMins}m ${longSecs}s`);
+    }
+    if (info.lastAwayTime) {
+      messages.push(`   🕐 Dernier départ : ${info.lastAwayTime}`);
+    }
   }
   
   // Détection VPN/Proxy/Tor
