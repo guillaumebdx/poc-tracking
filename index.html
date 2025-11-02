@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hello World</title>
+</head>
+<body>
+    <h1>Bienvenue</h1>
+    
+    <script>
+
+// lire quelques signaux non-intrusifs
+const info = {
+  lang: navigator.language,
+  tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  screen: `${screen.width}x${screen.height}@${devicePixelRatio||1} DPR`,
+  mem: navigator.deviceMemory || 'unknown',
+  cores: navigator.hardwareConcurrency || 'unknown',
+  touch: navigator.maxTouchPoints || 0,
+  theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+  
+  // Informations supplémentaires
+  platform: navigator.platform,
+  vendor: navigator.vendor,
+  cookiesEnabled: navigator.cookieEnabled,
+  doNotTrack: navigator.doNotTrack === '1' || navigator.doNotTrack === 'yes',
+  onLine: navigator.onLine,
+  
+  // Détection de plugins
+  pdfViewerEnabled: navigator.pdfViewerEnabled || false,
+  
+  // Orientation et dimensions
+  orientation: screen.orientation ? screen.orientation.type : 'unknown',
+  windowSize: `${window.innerWidth}x${window.innerHeight}`,
+  isFullscreen: window.innerWidth === screen.width && window.innerHeight === screen.height,
+  
+  // Contexte temporel
+  now: new Date().toLocaleString('fr-FR'),
+  dayOfWeek: new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(new Date()),
+  
+  // Détection du mode navigation privée (tentative)
+  possiblyIncognito: false,
+  
+  // Détection bloqueur de pub (simple test)
+  adBlockDetected: false,
+  
+  // Informations réseau (métriques fiables uniquement)
+  downlink: null,
+  rtt: null,
+  saveData: null,
+  
+  // Timezone détaillé
+  timezoneOffset: new Date().getTimezoneOffset(),
+  
+  // Préférences système
+  languages: navigator.languages || [navigator.language],
+  reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+  highContrast: matchMedia('(prefers-contrast: high)').matches,
+  
+  // Fingerprints
+  canvasFingerprint: null,
+  webglFingerprint: null,
+  audioFingerprint: null,
+  
+  // GPU Info
+  gpuVendor: null,
+  gpuRenderer: null,
+  
+  // Audio
+  audioChannels: null,
+  audioSampleRate: null,
+  
+  // Gamepads
+  gamepadsConnected: 0,
+  
+  // Storage
+  storageQuota: null,
+  storageUsage: null,
+  
+  // Fonts détectées
+  fontsDetected: [],
+  
+  // Géolocalisation (via IP)
+  ipAddress: null,
+  city: null,
+  region: null,
+  country: null,
+  countryCode: null,
+  postalCode: null,
+  latitude: null,
+  longitude: null,
+  isp: null,
+  org: null,
+  
+  // Détection VPN/Proxy
+  vpnDetected: null,
+  proxyDetected: null,
+  torDetected: null,
+  
+  // Météo locale
+  weather: null,
+  temperature: null,
+  feelsLike: null,
+  humidity: null,
+  weatherDescription: null,
+  windSpeed: null,
+  
+  // Détection DevTools
+  devToolsOpen: false,
+  devToolsOpenCount: 0,
+  devToolsFirstOpened: null,
+  devToolsLastOpened: null
+};
+
+// Géolocalisation via IP (sans consentement)
+fetch('https://ipapi.co/json/')
+  .then(response => response.json())
+  .then(data => {
+    info.ipAddress = data.ip;
+    info.city = data.city;
+    info.region = data.region;
+    info.country = data.country_name;
+    info.countryCode = data.country_code;
+    info.postalCode = data.postal;
+    info.latitude = data.latitude;
+    info.longitude = data.longitude;
+    info.isp = data.org;
+    updateMessage();
+    
+    // Récupérer la météo locale basée sur les coordonnées
+    if (info.latitude && info.longitude) {
+      fetch(`https://wttr.in/${info.latitude},${info.longitude}?format=j1`)
+        .then(response => response.json())
+        .then(weatherData => {
+          const current = weatherData.current_condition[0];
+          info.temperature = current.temp_C;
+          info.feelsLike = current.FeelsLikeC;
+          info.humidity = current.humidity;
+          info.weatherDescription = current.weatherDesc[0].value;
+          info.windSpeed = current.windspeedKmph;
+          updateMessage();
+        })
+        .catch(err => console.log('Weather failed:', err));
+    }
+  })
+  .catch(err => {
+    console.log('IP Geolocation failed:', err);
+  });
+
+// Détection VPN/Proxy/Tor via API
+fetch('https://vpnapi.io/api/' + (info.ipAddress || ''))
+  .then(response => response.json())
+  .then(data => {
+    if (data.security) {
+      info.vpnDetected = data.security.vpn;
+      info.proxyDetected = data.security.proxy;
+      info.torDetected = data.security.tor;
+      updateMessage();
+    }
+  })
+  .catch(err => {
+    // Essayer une API alternative
+    fetch('https://proxycheck.io/v2/' + (info.ipAddress || '') + '?vpn=1&asn=1')
+      .then(response => response.json())
+      .then(data => {
+        const ipData = data[info.ipAddress];
+        if (ipData) {
+          info.vpnDetected = ipData.proxy === 'yes' || ipData.type === 'VPN';
+          info.proxyDetected = ipData.proxy === 'yes';
+          updateMessage();
+        }
+      })
+      .catch(err => console.log('VPN detection failed:', err));
+  });
+
+// Informations réseau (métriques précises uniquement)
+if (navigator.connection) {
+  info.downlink = navigator.connection.downlink ? `${navigator.connection.downlink} Mbps` : null;
+  info.rtt = navigator.connection.rtt ? `${navigator.connection.rtt} ms` : null;
+  info.saveData = navigator.connection.saveData || false;
+}
+
+// Test navigation privée (pas fiable à 100%)
+try {
+  if (!window.indexedDB || !window.localStorage) {
+    info.possiblyIncognito = true;
+  }
+} catch(e) {
+  info.possiblyIncognito = true;
+}
+
+// Canvas Fingerprint
+function getCanvasFingerprint() {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 200;
+    canvas.height = 50;
+    
+    ctx.textBaseline = 'top';
+    ctx.font = '14px Arial';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#f60';
+    ctx.fillRect(125, 1, 62, 20);
+    ctx.fillStyle = '#069';
+    ctx.fillText('Canvas Fingerprint 🎨', 2, 15);
+    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+    ctx.fillText('Canvas Fingerprint 🎨', 4, 17);
+    
+    const dataURL = canvas.toDataURL();
+    let hash = 0;
+    for (let i = 0; i < dataURL.length; i++) {
+      const char = dataURL.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString(16).substring(0, 8);
+  } catch(e) {
+    return 'error';
+  }
+}
+
+// WebGL Fingerprint
+function getWebGLFingerprint() {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!gl) return { vendor: 'not supported', renderer: 'not supported', fingerprint: 'none' };
+    
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    const vendor = debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'unknown';
+    const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'unknown';
+    
+    info.gpuVendor = vendor;
+    info.gpuRenderer = renderer;
+    
+    // Créer un fingerprint WebGL
+    const params = [
+      gl.getParameter(gl.VERSION),
+      gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+      gl.getParameter(gl.VENDOR),
+      gl.getParameter(gl.RENDERER),
+      gl.getParameter(gl.MAX_TEXTURE_SIZE),
+      gl.getParameter(gl.MAX_VERTEX_ATTRIBS)
+    ].join('~');
+    
+    let hash = 0;
+    for (let i = 0; i < params.length; i++) {
+      const char = params.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    
+    return hash.toString(16).substring(0, 8);
+  } catch(e) {
+    return 'error';
+  }
+}
+
+// Audio Fingerprint
+function getAudioFingerprint() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return 'not supported';
+    
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const analyser = context.createAnalyser();
+    const gainNode = context.createGain();
+    const scriptProcessor = context.createScriptProcessor(4096, 1, 1);
+    
+    info.audioChannels = context.destination.maxChannelCount;
+    info.audioSampleRate = context.sampleRate;
+    
+    gainNode.gain.value = 0;
+    oscillator.type = 'triangle';
+    oscillator.connect(analyser);
+    analyser.connect(scriptProcessor);
+    scriptProcessor.connect(gainNode);
+    gainNode.connect(context.destination);
+    oscillator.start(0);
+    
+    let hash = 0;
+    scriptProcessor.onaudioprocess = function(event) {
+      const output = event.outputBuffer.getChannelData(0);
+      for (let i = 0; i < output.length; i++) {
+        hash += Math.abs(output[i]);
+      }
+      oscillator.stop();
+      scriptProcessor.disconnect();
+      context.close();
+    };
+    
+    setTimeout(() => {
+      info.audioFingerprint = hash.toString(16).substring(0, 8);
+      updateMessage();
+    }, 100);
+    
+    return 'calculating...';
+  } catch(e) {
+    return 'error';
+  }
+}
+
+// Détection de fonts
+function detectFonts() {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = '72px monospace';
+  const baseWidth = ctx.measureText('mmmmmmmmmmlli').width;
+  
+  // Fonts système de base
+  const systemFonts = [
+    'Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 
+    'Palatino', 'Garamond', 'Comic Sans MS', 'Trebuchet MS', 'Impact',
+    'Arial Black', 'Tahoma', 'Lucida Console', 'Courier', 'Lucida Sans Unicode',
+    'MS Sans Serif', 'MS Serif', 'Helvetica', 'Calibri', 'Cambria'
+  ];
+  
+  // Fonts téléchargées / non-standard (révèle des infos sur l'utilisateur)
+  const downloadedFonts = [
+    // Google Fonts populaires
+    'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Raleway',
+    'Source Sans Pro', 'Oswald', 'Merriweather', 'PT Sans', 'Ubuntu',
+    'Playfair Display', 'Nunito', 'Inter', 'Work Sans',
+    
+    // Adobe Fonts
+    'Adobe Garamond Pro', 'Myriad Pro', 'Minion Pro', 'Proxima Nova',
+    'Futura', 'Avenir', 'Brandon Grotesque', 'Gotham',
+    
+    // Fonts de design/développement
+    'Fira Code', 'JetBrains Mono', 'Source Code Pro', 'Consolas',
+    'Monaco', 'Menlo', 'Inconsolata', 'SF Mono', 'Cascadia Code',
+    
+    // Fonts Adobe Creative Suite
+    'Adobe Caslon Pro', 'Adobe Jenson Pro', 'Bickham Script Pro',
+    'Trajan Pro', 'Warnock Pro',
+    
+    // Fonts Microsoft Office avancées
+    'Segoe UI', 'Segoe Print', 'Candara', 'Constantia', 'Corbel',
+    
+    // Fonts Apple
+    'SF Pro Display', 'SF Pro Text', 'New York', 'Helvetica Neue',
+    'Apple Chancery', 'Marker Felt', 'Noteworthy',
+    
+    // Fonts gaming/streaming
+    'Bahnschrift', 'Ebrima', 'Nirmala UI',
+    
+    // Fonts professionnelles
+    'DIN', 'Univers', 'Frutiger', 'Trade Gothic', 'Akzidenz Grotesk',
+    'Franklin Gothic', 'News Gothic', 'Century Gothic'
+  ];
+  
+  const detectedSystem = [];
+  const detectedDownloaded = [];
+  
+  systemFonts.forEach(font => {
+    ctx.font = `72px '${font}', monospace`;
+    const width = ctx.measureText('mmmmmmmmmmlli').width;
+    if (width !== baseWidth) {
+      detectedSystem.push(font);
+    }
+  });
+  
+  downloadedFonts.forEach(font => {
+    ctx.font = `72px '${font}', monospace`;
+    const width = ctx.measureText('mmmmmmmmmmlli').width;
+    if (width !== baseWidth) {
+      detectedDownloaded.push(font);
+    }
+  });
+  
+  return {
+    system: detectedSystem,
+    downloaded: detectedDownloaded,
+    total: detectedSystem.length + detectedDownloaded.length
+  };
+}
+
+// Détection gamepads
+function detectGamepads() {
+  const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let count = 0;
+  for (let i = 0; i < gamepads.length; i++) {
+    if (gamepads[i]) count++;
+  }
+  return count;
+}
+
+// Storage quota
+if (navigator.storage && navigator.storage.estimate) {
+  navigator.storage.estimate().then(estimate => {
+    info.storageQuota = `${(estimate.quota / 1024 / 1024 / 1024).toFixed(2)} GB`;
+    info.storageUsage = `${(estimate.usage / 1024 / 1024).toFixed(2)} MB`;
+    updateMessage();
+  });
+}
+
+// Exécuter les fingerprints
+info.canvasFingerprint = getCanvasFingerprint();
+info.webglFingerprint = getWebGLFingerprint();
+info.audioFingerprint = getAudioFingerprint();
+info.fontsDetected = detectFonts();
+info.gamepadsConnected = detectGamepads();
+
+// Test bloqueur de pub basique
+const adTest = document.createElement('div');
+adTest.innerHTML = '&nbsp;';
+adTest.className = 'adsbox';
+adTest.style.position = 'absolute';
+adTest.style.left = '-9999px';
+document.body.appendChild(adTest);
+setTimeout(() => {
+  if (adTest.offsetHeight === 0) {
+    info.adBlockDetected = true;
+  }
+  adTest.remove();
+  updateMessage();
+}, 100);
+
+// Détection niveau de batterie (si disponible, sans demander permission)
+if (navigator.getBattery) {
+  navigator.getBattery().then(battery => {
+    info.battery = `${Math.round(battery.level * 100)}%`;
+    info.charging = battery.charging;
+    updateMessage();
+  });
+}
+
+// Détection DevTools (multiple méthodes)
+(function detectDevTools() {
+  const threshold = 160;
+  let devToolsWasOpen = false;
+  
+  // Méthode 1: Détection via la taille de la fenêtre
+  function checkWindowSize() {
+    const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+    const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+    return widthThreshold || heightThreshold;
+  }
+  
+  // Méthode 2: Détection via console.log timing
+  let devtools = { open: false, orientation: null };
+  const element = new Image();
+  Object.defineProperty(element, 'id', {
+    get: function() {
+      devtools.open = true;
+      devtools.orientation = (window.outerHeight - window.innerHeight > threshold) ? 'vertical' : 'horizontal';
+      return 'devtools-detector';
+    }
+  });
+  
+  // Méthode 3: Détection via debugger statement timing
+  function checkDebugger() {
+    const start = performance.now();
+    debugger;
+    const end = performance.now();
+    return end - start > 100; // Si debugger prend du temps, DevTools est ouvert
+  }
+  
+  // Vérification continue
+  setInterval(() => {
+    // Reset pour re-détecter
+    devtools.open = false;
+    
+    // Trigger la détection via console
+    console.log('%c', element);
+    console.clear();
+    
+    // Vérifier via taille de fenêtre
+    const sizeCheck = checkWindowSize();
+    
+    const isOpen = devtools.open || sizeCheck;
+    
+    if (isOpen && !info.devToolsOpen) {
+      // DevTools vient d'être ouvert
+      info.devToolsOpen = true;
+      info.devToolsOpenCount++;
+      info.devToolsLastOpened = new Date().toLocaleTimeString('fr-FR');
+      if (!info.devToolsFirstOpened) {
+        info.devToolsFirstOpened = new Date().toLocaleTimeString('fr-FR');
+      }
+      updateMessage();
+      
+      // Message dans la console pour troller
+      console.log('%c👀 Je te vois !', 'font-size: 30px; color: red; font-weight: bold;');
+      console.log('%cTu inspectes mon code ? Intéressant... 🕵️', 'font-size: 16px; color: orange;');
+      console.log('%cNombre de fois que tu as ouvert les DevTools: ' + info.devToolsOpenCount, 'font-size: 14px; color: blue;');
+    } else if (!isOpen && info.devToolsOpen) {
+      // DevTools vient d'être fermé
+      info.devToolsOpen = false;
+      updateMessage();
+    }
+  }, 500);
+})();
+
+function updateMessage() {
+  const messages = [];
+  
+  messages.push(`👋 Salut ! Je vois que tu es sur un écran ${info.screen}`);
+  
+  // Géolocalisation (via IP)
+  if (info.city && info.country) {
+    messages.push(`📍 Localisation: ${info.city}, ${info.region}, ${info.country}`);
+    if (info.postalCode) {
+      messages.push(`📮 Code postal: ${info.postalCode}`);
+    }
+    if (info.latitude && info.longitude) {
+      messages.push(`🗺️ Coordonnées: ${info.latitude.toFixed(4)}, ${info.longitude.toFixed(4)}`);
+    }
+    if (info.ipAddress) {
+      messages.push(`🌐 IP: ${info.ipAddress}`);
+    }
+    if (info.isp) {
+      messages.push(`🏢 Fournisseur: ${info.isp}`);
+    }
+  }
+  
+  // Météo locale
+  if (info.temperature !== null) {
+    messages.push(`<br><strong>🌤️ Météo chez toi en ce moment :</strong>`);
+    messages.push(`   🌡️ Température: ${info.temperature}°C (ressenti ${info.feelsLike}°C)`);
+    messages.push(`   ☁️ Conditions: ${info.weatherDescription}`);
+    messages.push(`   💧 Humidité: ${info.humidity}%`);
+    messages.push(`   💨 Vent: ${info.windSpeed} km/h`);
+  }
+  
+  messages.push(`🌍 Tu es en ${info.lang} (${info.tz}, offset: ${info.timezoneOffset} min)`);
+  messages.push(`🗣️ Langues: ${info.languages.join(', ')}`);
+  messages.push(`📅 On est ${info.dayOfWeek}, il est ${info.now.split(' ')[1]}`);
+  messages.push(`💻 Plateforme: ${info.platform} (${info.vendor})`);
+  messages.push(`🖥️ Fenêtre: ${info.windowSize} ${info.isFullscreen ? '(plein écran)' : '(pas en plein écran)'}`);
+  messages.push(`📱 Orientation: ${info.orientation}`);
+  messages.push(`🎨 Thème préféré: ${info.theme}`);
+  
+  // Réseau (métriques fiables uniquement)
+  if (info.downlink) {
+    messages.push(`⚡ Vitesse connexion: ${info.downlink}`);
+  }
+  if (info.rtt) {
+    messages.push(`📡 Latence réseau: ${info.rtt}`);
+  }
+  if (info.saveData) {
+    messages.push(`💾 Mode économie données activé`);
+  }
+  
+  messages.push(`🧠 Mémoire: ${info.mem} GB, ${info.cores} cœurs`);
+  messages.push(`👆 Points de contact: ${info.touch} ${info.touch > 0 ? '(appareil tactile)' : '(pas tactile)'}`);
+  messages.push(`🌐 ${info.onLine ? 'En ligne' : 'Hors ligne'}`);
+  messages.push(`🍪 Cookies: ${info.cookiesEnabled ? 'activés' : 'désactivés'}`);
+  
+  // Préférences système
+  if (info.reducedMotion) {
+    messages.push(`♿ Animations réduites activées`);
+  }
+  if (info.highContrast) {
+    messages.push(`🔆 Contraste élevé activé`);
+  }
+  
+  // Batterie
+  if (info.battery) {
+    messages.push(`🔋 Batterie: ${info.battery} ${info.charging ? '(en charge ⚡)' : '(sur batterie)'}`);
+  }
+  
+  // GPU
+  if (info.gpuVendor && info.gpuVendor !== 'unknown') {
+    messages.push(`🎮 GPU: ${info.gpuVendor}`);
+    messages.push(`🖼️ Renderer: ${info.gpuRenderer}`);
+  }
+  
+  // Audio
+  if (info.audioChannels) {
+    messages.push(`🔊 Audio: ${info.audioChannels} canaux, ${info.audioSampleRate} Hz`);
+  }
+  
+  // Gamepads
+  if (info.gamepadsConnected > 0) {
+    messages.push(`🎮 ${info.gamepadsConnected} manette(s) connectée(s) !`);
+  }
+  
+  // Storage
+  if (info.storageQuota) {
+    messages.push(`💿 Stockage: ${info.storageUsage} utilisés sur ${info.storageQuota} disponibles`);
+  }
+  
+  // Fingerprints
+  messages.push(`🔐 Canvas Fingerprint: ${info.canvasFingerprint}`);
+  messages.push(`🔐 WebGL Fingerprint: ${info.webglFingerprint}`);
+  if (info.audioFingerprint && info.audioFingerprint !== 'calculating...') {
+    messages.push(`🔐 Audio Fingerprint: ${info.audioFingerprint}`);
+  }
+  
+  // Fonts
+  if (info.fontsDetected && info.fontsDetected.total > 0) {
+    messages.push(`🔤 ${info.fontsDetected.system.length} fonts système détectées`);
+    
+    if (info.fontsDetected.downloaded.length > 0) {
+      messages.push(`📥 ${info.fontsDetected.downloaded.length} fonts téléchargées/spéciales détectées:`);
+      messages.push(`   → ${info.fontsDetected.downloaded.join(', ')}`);
+    }
+  }
+  
+  // Détection DevTools
+  if (info.devToolsOpen) {
+    messages.push(`<br><strong style="color: red; font-size: 20px;">👀 JE TE VOIS !</strong>`);
+    messages.push(`<strong style="color: orange; font-size: 18px;">🔴 Tu es en train d'inspecter mon code en ce moment même...</strong>`);
+    messages.push(`   📊 Tu as ouvert les DevTools ${info.devToolsOpenCount} fois`);
+    if (info.devToolsFirstOpened) {
+      messages.push(`   ⏰ Première fois: ${info.devToolsFirstOpened}`);
+    }
+    messages.push(`   🕐 Dernière fois: ${info.devToolsLastOpened}`);
+    messages.push(`<em style="color: #666;">Ferme les DevTools et regarde ce qui se passe... 😏</em>`);
+  } else if (info.devToolsOpenCount > 0) {
+    messages.push(`<br><strong>👀 Détection DevTools :</strong>`);
+    messages.push(`   ⚪ DevTools fermé (pour l'instant...)`);
+    messages.push(`   📊 Tu les as ouverts ${info.devToolsOpenCount} fois`);
+    if (info.devToolsFirstOpened) {
+      messages.push(`   ⏰ Première ouverture: ${info.devToolsFirstOpened}`);
+    }
+    messages.push(`   🕐 Dernière ouverture: ${info.devToolsLastOpened}`);
+  }
+  
+  // Détection VPN/Proxy/Tor
+  if (info.vpnDetected !== null || info.proxyDetected !== null || info.torDetected !== null) {
+    messages.push(`<br><strong>🔒 Analyse de sécurité :</strong>`);
+    if (info.vpnDetected === true) {
+      messages.push(`   🛡️ VPN détecté ! Tu caches ta vraie localisation`);
+    } else if (info.vpnDetected === false) {
+      messages.push(`   ✓ Pas de VPN détecté`);
+    }
+    if (info.proxyDetected === true) {
+      messages.push(`   🔀 Proxy détecté !`);
+    }
+    if (info.torDetected === true) {
+      messages.push(`   🧅 Tor détecté ! Tu es vraiment parano 😏`);
+    }
+  }
+  
+  // Détections spéciales
+  if (info.doNotTrack) {
+    messages.push(`🕵️ Do Not Track activé (mais je te vois quand même 😏)`);
+  }
+  
+  if (info.adBlockDetected) {
+    messages.push(`🛡️ Bloqueur de pub détecté !`);
+  }
+  
+  if (info.possiblyIncognito) {
+    messages.push(`🥷 Tu es peut-être en navigation privée...`);
+  }
+  
+  if (info.pdfViewerEnabled) {
+    messages.push(`📄 Lecteur PDF intégré détecté`);
+  }
+  
+
+  
+  const container = document.getElementById('info-display') || createInfoDisplay();
+  container.innerHTML = messages.map(m => `<p style="margin: 5px 0;">${m}</p>`).join('');
+}
+
+function createInfoDisplay() {
+  const div = document.createElement('div');
+  div.id = 'info-display';
+  div.style.cssText = 'padding: 20px; background: #f0f0f0; border-radius: 10px; margin: 20px 0; font-family: system-ui;';
+  document.body.prepend(div);
+  return div;
+}
+
+document.addEventListener('DOMContentLoaded', updateMessage);
+
+// Mise à jour du temps passé sur la page
+let secondsOnPage = 0;
+setInterval(() => {
+  secondsOnPage++;
+  const timeDisplay = document.getElementById('time-on-page') || createTimeDisplay();
+  const minutes = Math.floor(secondsOnPage / 60);
+  const seconds = secondsOnPage % 60;
+  timeDisplay.textContent = `⏱️ Temps sur la page: ${minutes}m ${seconds}s`;
+}, 1000);
+
+function createTimeDisplay() {
+  const div = document.createElement('div');
+  div.id = 'time-on-page';
+  div.style.cssText = 'position: fixed; bottom: 20px; right: 20px; padding: 10px 15px; background: #333; color: white; border-radius: 5px; font-family: monospace; font-size: 14px;';
+  document.body.appendChild(div);
+  return div;
+}
+
+    </script>
+</body>
+</html>
