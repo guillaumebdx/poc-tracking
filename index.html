@@ -505,7 +505,8 @@ if (navigator.storage && navigator.storage.estimate) {
 
 // Touch Tracking & Heatmap
 (function setupTouchTracking() {
-  console.log('🚀 setupTouchTracking() DÉMARRÉ - VERSION AVEC WINDOW LISTENERS');
+  const instanceId = Math.random().toString(36).substr(2, 9);
+  console.log('🚀 setupTouchTracking() DÉMARRÉ - Instance:', instanceId);
   
   let canvas = null;
   let ctx = null;
@@ -783,12 +784,13 @@ if (navigator.storage && navigator.storage.estimate) {
   
   // Écouter les événements - Mettre à jour activeTouches avec COPIE des coordonnées
   window.addEventListener('touchstart', (e) => {
-    console.log('🟢 touchstart - Mise à jour activeTouches');
+    console.log(`🟢 [${instanceId}] touchstart - Mise à jour activeTouches`);
     // Copier les coordonnées, pas les objets Touch
     activeTouches = Array.from(e.touches).map(t => ({
       clientX: t.clientX,
       clientY: t.clientY
     }));
+    console.log(`   activeTouches.length = ${activeTouches.length}`);
     trackTouch(e);
     const touch = e.touches[0];
     startLongPress(touch.clientX, touch.clientY);
@@ -1410,23 +1412,7 @@ function createInfoDisplay() {
 
 document.addEventListener('DOMContentLoaded', updateMessage);
 
-// Mise à jour du temps passé sur la page
-let secondsOnPage = 0;
-setInterval(() => {
-  secondsOnPage++;
-  const timeDisplay = document.getElementById('time-on-page') || createTimeDisplay();
-  const minutes = Math.floor(secondsOnPage / 60);
-  const seconds = secondsOnPage % 60;
-  timeDisplay.textContent = `⏱️ Temps sur la page: ${minutes}m ${seconds}s`;
-}, 1000);
-
-function createTimeDisplay() {
-  const div = document.createElement('div');
-  div.id = 'time-on-page';
-  div.style.cssText = 'position: fixed; bottom: 20px; right: 20px; padding: 10px 15px; background: #333; color: white; border-radius: 5px; font-family: monospace; font-size: 14px;';
-  document.body.appendChild(div);
-  return div;
-}
+// Temps sur la page retiré
 
     </script>
 </body>
