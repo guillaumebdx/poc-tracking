@@ -539,21 +539,21 @@ if (navigator.storage && navigator.storage.estimate) {
     ctx.translate(x, y);
     ctx.rotate(rotation);
     
-    // Empreinte ovale avec dégradé
-    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 35);
-    gradient.addColorStop(0, 'rgba(80, 80, 80, 0.4)');
-    gradient.addColorStop(0.6, 'rgba(60, 60, 60, 0.25)');
-    gradient.addColorStop(1, 'rgba(40, 40, 40, 0)');
+    // Empreinte ovale avec dégradé (PLUS VISIBLE)
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 45);
+    gradient.addColorStop(0, 'rgba(200, 200, 200, 0.9)'); // Beaucoup plus clair et opaque
+    gradient.addColorStop(0.6, 'rgba(150, 150, 150, 0.7)');
+    gradient.addColorStop(1, 'rgba(100, 100, 100, 0.3)');
     
-    // Fond ovale
+    // Fond ovale (PLUS GRAND)
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 35, 45, 0, 0, Math.PI * 2); // Ovale vertical
+    ctx.ellipse(0, 0, 45, 60, 0, 0, Math.PI * 2); // Plus grand : 45x60 au lieu de 35x45
     ctx.fill();
     
-    // Lignes d'empreinte digitale (courbes)
-    ctx.strokeStyle = 'rgba(40, 40, 40, 0.35)';
-    ctx.lineWidth = 1.5;
+    // Lignes d'empreinte digitale (courbes) - PLUS VISIBLES
+    ctx.strokeStyle = 'rgba(80, 80, 80, 0.8)'; // Beaucoup plus opaque
+    ctx.lineWidth = 2.5; // Plus épais
     
     // Lignes courbes pour simuler les crêtes de l'empreinte
     for (let i = 0; i < 7; i++) {
@@ -574,13 +574,13 @@ if (navigator.storage && navigator.storage.estimate) {
       ctx.stroke();
     }
     
-    // Quelques points pour plus de détails
-    ctx.fillStyle = 'rgba(30, 30, 30, 0.2)';
-    for (let i = 0; i < 8; i++) {
-      const px = (Math.random() - 0.5) * 50;
-      const py = (Math.random() - 0.5) * 70;
+    // Quelques points pour plus de détails (PLUS VISIBLES)
+    ctx.fillStyle = 'rgba(100, 100, 100, 0.6)'; // Plus clairs
+    for (let i = 0; i < 12; i++) { // Plus de points
+      const px = (Math.random() - 0.5) * 60;
+      const py = (Math.random() - 0.5) * 90;
       ctx.beginPath();
-      ctx.arc(px, py, 1, 0, Math.PI * 2);
+      ctx.arc(px, py, 1.5, 0, Math.PI * 2); // Points plus gros
       ctx.fill();
     }
     
