@@ -121,7 +121,11 @@ const info = {
   
   // Touch Tracking
   touchCount: 0,
-  touchPoints: []
+  touchPoints: [],
+  
+  // Long Press Tracking
+  longPresses: [],
+  currentLongPress: null
 };
 
 // Forcer la réinitialisation au chargement (pour éviter le bfcache)
@@ -505,6 +509,16 @@ if (navigator.storage && navigator.storage.estimate) {
   let ctx = null;
   let isVisible = false;
   
+  // Canvas séparé pour le halo de chaleur
+  let haloCanvas = null;
+  let haloCtx = null;
+  
+  // Long Press Detection
+  let longPressTimer = null;
+  let longPressStartTime = null;
+  let longPressPosition = null;
+  let haloAnimationFrame = null;
+  
   // Créer le canvas pour le heatmap IMMÉDIATEMENT
   function createCanvas() {
     canvas = document.createElement('canvas');
@@ -527,11 +541,40 @@ if (navigator.storage && navigator.storage.estimate) {
     console.log('Canvas créé:', canvas.width, 'x', canvas.height);
   }
   
-  // Créer le canvas dès le chargement
+  // Créer le canvas pour le halo de chaleur
+  function createHaloCanvas() {
+    haloCanvas = document.createElement('canvas');
+    haloCanvas.id = 'heat-halo';
+    haloCanvas.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 999998;
+      display: none;
+    `;
+    haloCanvas.width = window.innerWidth;
+    haloCanvas.height = window.innerHeight;
+    document.body.appendChild(haloCanvas);
+    haloCtx = haloCanvas.getContext('2d');
+    console.log('Halo canvas créé');
+  }
+  
+  // Créer les canvas dès le chargement
   if (document.body) {
     createCanvas();
+    createHaloCanvas();
+    // Démarrer la boucle d'animation
+    animateHalo();
   } else {
-    document.addEventListener('DOMContentLoaded', createCanvas);
+    document.addEventListener('DOMContentLoaded', () => {
+      createCanvas();
+      createHaloCanvas();
+      // Démarrer la boucle d'animation
+      animateHalo();
+    });
   }
   
   // Dessiner une empreinte digitale
@@ -598,6 +641,43 @@ if (navigator.storage && navigator.storage.estimate) {
     ctx.restore();
   }
   
+  // Dessiner un halo de chaleur pulsant
+  function drawHeatHalo(x, y, duration) {
+    if (!haloCtx) return;
+    
+    const elapsed = (Date.now() - longPressStartTime) / 1000;
+    
+    // Ne rien afficher avant 5 secondes
+    if (elapsed < 5) return;
+    
+    const intensity = Math.min((elapsed - 5) / 2, 1); // 0 à 1 sur 2 secondes APRÈS les 5 premières
+    const radius = 50 + (intensity * 150); // De 50px à 200px
+    
+    // Effet de pulsation intense
+    const pulse = Math.sin(Date.now() / 150) * 15;
+    
+    // Dégradé qui devient très rouge très vite
+    const gradient = haloCtx.createRadialGradient(x, y, 0, x, y, radius + pulse);
+    
+    if (intensity < 0.3) {
+      // Phase 1: Orange/Rouge (très courte)
+      gradient.addColorStop(0, `rgba(255, 100, 0, ${0.5 + intensity * 0.5})`);
+      gradient.addColorStop(0.5, `rgba(255, 50, 0, ${0.4 + intensity * 0.4})`);
+      gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+    } else {
+      // Phase 2: Rouge intense et stressant (arrive vite)
+      gradient.addColorStop(0, `rgba(255, 0, 0, ${0.7 + intensity * 0.3})`);
+      gradient.addColorStop(0.3, `rgba(255, 30, 0, ${0.6 + intensity * 0.3})`);
+      gradient.addColorStop(0.7, `rgba(255, 80, 0, ${0.3 + intensity * 0.3})`);
+      gradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+    }
+    
+    haloCtx.fillStyle = gradient;
+    haloCtx.beginPath();
+    haloCtx.arc(x, y, radius + pulse, 0, Math.PI * 2);
+    haloCtx.fill();
+  }
+  
   // Tracker les touches
   function trackTouch(e) {
     const touches = e.touches || e.changedTouches || [e];
@@ -616,11 +696,92 @@ if (navigator.storage && navigator.storage.estimate) {
     updateMessage();
   }
   
-  // Écouter les événements
-  document.addEventListener('touchstart', trackTouch, { passive: true });
-  document.addEventListener('touchmove', trackTouch, { passive: true });
+  // Démarrer la détection de long press
+  function startLongPress(x, y) {
+    longPressStartTime = Date.now();
+    longPressPosition = { x, y };
+    
+    console.log('🔥 Long press détecté à', x, y);
+  }
   
-  // Aussi tracker les clics (desktop)
+  // Animation du halo en temps réel (boucle séparée)
+  function animateHalo() {
+    if (!longPressPosition) {
+      haloAnimationFrame = requestAnimationFrame(animateHalo);
+      return;
+    }
+    
+    const elapsed = (Date.now() - longPressStartTime) / 1000;
+    
+    // Afficher le halo canvas seulement après 5 secondes
+    if (elapsed >= 5) {
+      if (haloCanvas && haloCanvas.style.display === 'none') {
+        haloCanvas.style.display = 'block';
+      }
+      
+      // Nettoyer et redessiner sur le halo canvas avec la position ACTUELLE
+      haloCtx.clearRect(0, 0, haloCanvas.width, haloCanvas.height);
+      drawHeatHalo(longPressPosition.x, longPressPosition.y, elapsed);
+    }
+    
+    // Continuer l'animation
+    haloAnimationFrame = requestAnimationFrame(animateHalo);
+  }
+  
+  // Arrêter la détection de long press
+  function stopLongPress() {
+    if (longPressPosition) {
+      const duration = (Date.now() - longPressStartTime) / 1000;
+      console.log(`⏱️ Long press terminé: ${duration.toFixed(1)}s`);
+      
+      if (duration >= 5) {
+        info.longPresses.push({
+          x: longPressPosition.x,
+          y: longPressPosition.y,
+          duration: duration
+        });
+        console.log('🔥 Long press > 5s enregistré!');
+      }
+    }
+    
+    // Arrêter l'animation
+    if (haloAnimationFrame) {
+      cancelAnimationFrame(haloAnimationFrame);
+      haloAnimationFrame = null;
+    }
+    
+    // Masquer le halo canvas après un fade
+    if (haloCanvas) {
+      setTimeout(() => {
+        haloCtx.clearRect(0, 0, haloCanvas.width, haloCanvas.height);
+        haloCanvas.style.display = 'none';
+      }, 500);
+    }
+    
+    longPressPosition = null;
+    longPressStartTime = null;
+  }
+  
+  // Écouter les événements
+  document.addEventListener('touchstart', (e) => {
+    trackTouch(e);
+    const touch = e.touches[0];
+    startLongPress(touch.clientX, touch.clientY);
+  }, { passive: true });
+  
+  document.addEventListener('touchend', stopLongPress, { passive: true });
+  document.addEventListener('touchcancel', stopLongPress, { passive: true });
+  
+  document.addEventListener('touchmove', (e) => {
+    trackTouch(e);
+    // Mettre à jour la position du long press pour suivre le doigt
+    if (longPressPosition && e.touches[0]) {
+      longPressPosition.x = e.touches[0].clientX;
+      longPressPosition.y = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  
+  // Aussi tracker les clics (desktop) - sans long press
   document.addEventListener('mousedown', (e) => {
     info.touchPoints.push({ x: e.clientX, y: e.clientY, time: Date.now() });
     info.touchCount++;
@@ -1156,6 +1317,14 @@ function updateMessage() {
   // Touch Tracking Stats
   if (info.touchCount > 0) {
     messages.push(`   👆 ${info.touchCount} empreintes digitales détectées`);
+  }
+  
+  // Long Press Stats
+  if (info.longPresses.length > 0) {
+    messages.push(`<br><strong>🔥 Long press détectés :</strong>`);
+    messages.push(`   ⏱️ ${info.longPresses.length} fois où tu as laissé ton doigt > 5s`);
+    const maxDuration = Math.max(...info.longPresses.map(lp => lp.duration));
+    messages.push(`   🏆 Record: ${maxDuration.toFixed(1)}s au même endroit !`);
   }
   
   // Détection VPN/Proxy/Tor
